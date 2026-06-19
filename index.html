@@ -75,6 +75,7 @@
   @keyframes pulse{ 0%{transform:scale(1);} 35%{transform:scale(1.08);} 100%{transform:scale(1);} }
   @media (prefers-reduced-motion: reduce){ .countdown.pulse{ animation:none; } }
   .meta{ font-size:16px; color:var(--ink-dim); font-weight:600; letter-spacing:.04em; }
+  .meta-block{ display:flex; flex-direction:column; align-items:center; gap:4px; }
 
   .controls{ display:flex; align-items:center; justify-content:center; gap:28px; padding:20px 20px 28px; }
   .ctrl-secondary{ background:none; border:none; color:var(--ink); opacity:.6; font-size:14px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:10px; }
@@ -172,7 +173,10 @@
         </svg>
         <div class="countdown" id="countdown">10</div>
       </div>
-      <div class="meta" id="meta-label">Round 1 of 8</div>
+      <div class="meta-block">
+        <div class="meta" id="meta-round">Round 1 of 8</div>
+        <div class="meta" id="meta-set" hidden>Set 1 of 1</div>
+      </div>
     </div>
     <div class="controls">
       <button class="ctrl-secondary" id="skip-btn">Skip</button>
@@ -182,7 +186,7 @@
   </section>
 
   <section id="done-view" hidden>
-    <div class="big">Workout complete</div>
+    <div class="big" id="done-title">Workout complete</div>
     <div class="stats" id="done-stats">8 rounds · 4:00 total</div>
     <button id="again-btn">Start another</button>
   </section>
@@ -345,15 +349,22 @@
   function setPhaseVisuals(p){
     appEl.className = 'phase-' + p.type;
     document.getElementById('phase-label').textContent = phaseLabelText(p);
-    const meta = document.getElementById('meta-label');
+    const metaRound = document.getElementById('meta-round');
+    const metaSet = document.getElementById('meta-set');
     if(p.type==='work' || p.type==='rest'){
-      let txt = 'Round ' + p.round + ' of ' + fields.rounds;
-      if(fields.sets>1) txt += '  ·  Set ' + p.set + ' of ' + fields.sets;
-      meta.textContent = txt;
+      metaRound.textContent = 'Round ' + p.round + ' of ' + fields.rounds;
+      if(fields.sets>1){
+        metaSet.textContent = 'Set ' + p.set + ' of ' + fields.sets;
+        metaSet.hidden = false;
+      } else {
+        metaSet.hidden = true;
+      }
     } else if(p.type==='setbreak'){
-      meta.textContent = 'Set ' + p.set + ' of ' + fields.sets + ' complete';
+      metaRound.textContent = 'Set ' + p.set + ' of ' + fields.sets + ' complete';
+      metaSet.hidden = true;
     } else {
-      meta.textContent = 'Starting soon';
+      metaRound.textContent = 'Starting soon';
+      metaSet.hidden = true;
     }
   }
 
@@ -366,7 +377,7 @@
 
   function advance(){
     phaseIndex++;
-    if(phaseIndex >= phases.length){ finish(); return; }
+    if(phaseIndex >= phases.length){ showSummary(false); return; }
     const p = phases[phaseIndex];
     phaseEndAt = Date.now() + p.duration*1000;
     lastBeepSec = null;
@@ -422,31 +433,53 @@
     tickHandle = setInterval(tick, 100);
   }
 
-  function endToSetup(){
+  function computeProgress(){
+    let workSeconds = 0;
+    let roundsCompleted = 0;
+    for(let i=0; i<phaseIndex; i++){
+      const ph = phases[i];
+      if(ph.type==='prep') continue;
+      workSeconds += ph.duration;
+      if(ph.type==='work') roundsCompleted++;
+    }
+    const cur = phases[phaseIndex];
+    if(cur && cur.type!=='prep'){
+      let remainSec;
+      if(isRunning){ remainSec = Math.max(0, Math.ceil((phaseEndAt-Date.now())/1000)); }
+      else { remainSec = Math.max(0, Math.ceil(remainingAtPause/1000)); }
+      workSeconds += Math.max(0, Math.min(cur.duration, cur.duration-remainSec));
+    }
+    return { workSeconds: workSeconds, roundsCompleted: roundsCompleted };
+  }
+
+  function showSummary(partial){
     isRunning = false;
     clearInterval(tickHandle);
     releaseWakeLock();
     try{ window.speechSynthesis.cancel(); }catch(e){}
-    activeView.hidden = true; doneView.hidden = true; setupView.hidden = false;
-    appEl.className = '';
-  }
-
-  function finish(){
-    isRunning = false;
-    clearInterval(tickHandle);
-    releaseWakeLock();
-    speak('Workout complete');
-    beep(660,0.14,'sine'); setTimeout(function(){beep(880,0.14,'sine');},150); setTimeout(function(){beep(1100,0.22,'sine');},300);
-    const mins = Math.floor(workoutTotalSeconds/60), secs = workoutTotalSeconds%60;
-    document.getElementById('done-stats').textContent =
-      (fields.rounds*fields.sets) + ' rounds · ' + mins + ':' + (secs<10?'0':'')+secs + ' total work+rest';
+    const totalRounds = fields.rounds*fields.sets;
+    let totalSeconds, statsText;
+    if(partial){
+      const prog = computeProgress();
+      totalSeconds = prog.workSeconds;
+      const mins = Math.floor(totalSeconds/60), secs = totalSeconds%60;
+      statsText = prog.roundsCompleted + ' of ' + totalRounds + ' rounds · ' + mins + ':' + (secs<10?'0':'')+secs + ' total work+rest';
+    } else {
+      speak('Workout complete');
+      beep(660,0.14,'sine'); setTimeout(function(){beep(880,0.14,'sine');},150); setTimeout(function(){beep(1100,0.22,'sine');},300);
+      totalSeconds = workoutTotalSeconds;
+      const mins = Math.floor(totalSeconds/60), secs = totalSeconds%60;
+      statsText = totalRounds + ' rounds · ' + mins + ':' + (secs<10?'0':'')+secs + ' total work+rest';
+    }
+    document.getElementById('done-title').textContent = partial ? 'Workout partially complete' : 'Workout complete';
+    document.getElementById('done-stats').textContent = statsText;
     activeView.hidden = true; setupView.hidden = true; doneView.hidden = false;
     appEl.className = '';
   }
 
   document.getElementById('start-btn').addEventListener('click', start);
   document.getElementById('pause-btn').addEventListener('click', function(){ isRunning ? pause() : resume(); });
-  document.getElementById('end-btn').addEventListener('click', endToSetup);
+  document.getElementById('end-btn').addEventListener('click', function(){ showSummary(true); });
   document.getElementById('restart-btn').addEventListener('click', function(){
     clearInterval(tickHandle);
     releaseWakeLock();
