@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Interval">
+<meta name="theme-color" content="#15130F">
+<title>Interval — HIIT Timer</title>
+<style>
+  :root{
+    --bg: #15130F;
+    --ink: #F4EFE4;
+    --ink-dim: #948C7C;
+    --prep: #FFC233;
+    --work: #FF5A33;
+    --rest: #00C2A8;
+    --setbreak: #8C7CF0;
+    --ring-track: rgba(244,239,228,0.14);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    height:100%; margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+    overscroll-behavior:none; -webkit-user-select:none; user-select:none;
+    -webkit-touch-callout:none; touch-action:manipulation;
+  }
+  #app{ height:100dvh; display:flex; flex-direction:column;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    transition: background .35s ease; }
+  [hidden]{ display:none !important; }
+
+  /* ---------- Setup view ---------- */
+  #setup-view{ flex:1; display:flex; flex-direction:column; padding:28px 22px; overflow-y:auto; }
+  .eyebrow{ font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-dim); font-weight:700; }
+  h1{ margin:4px 0 22px; font-size:34px; letter-spacing:-0.02em; font-weight:800; }
+  .presets{ display:flex; gap:8px; margin-bottom:24px; flex-wrap:wrap; }
+  .preset-btn{ flex:1; min-width:96px; padding:10px 8px; background:transparent; border:1px solid rgba(244,239,228,0.18);
+    color:var(--ink); border-radius:10px; font-size:13px; font-weight:600; letter-spacing:.02em; }
+  .preset-btn:active{ background:rgba(244,239,228,0.08); }
+
+  .row{ display:flex; align-items:center; justify-content:space-between; padding:16px 0; border-bottom:1px solid rgba(244,239,228,0.1); transition:opacity .2s; }
+  .row.dim{ opacity:.4; }
+  .row-label{ font-size:16px; font-weight:600; }
+  .row-sub{ font-size:12px; color:var(--ink-dim); margin-top:2px; }
+  .stepper{ display:flex; align-items:center; gap:14px; }
+  .stepper button{ width:38px; height:38px; border-radius:50%; border:1px solid rgba(244,239,228,0.25); background:transparent; color:var(--ink); font-size:20px; line-height:1; display:flex; align-items:center; justify-content:center; }
+  .stepper button:active{ background:rgba(244,239,228,0.12); }
+  .stepper .val{ min-width:64px; text-align:center; font-variant-numeric:tabular-nums; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:20px; font-weight:700; }
+
+  .sound-row{ display:flex; align-items:center; justify-content:space-between; padding:18px 0 6px; }
+  .switch{ width:46px; height:28px; border-radius:16px; background:rgba(244,239,228,0.18); position:relative; border:none; flex-shrink:0; }
+  .switch.on{ background:var(--rest); }
+  .switch .knob{ position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:var(--ink); transition:transform .18s ease; }
+  .switch.on .knob{ transform:translateX(18px); }
+
+  .start-btn{ margin-top:24px; width:100%; padding:18px; border-radius:16px; background:var(--work); color:#1A0A02; font-size:17px; font-weight:800; letter-spacing:.02em; border:none; }
+  .start-btn:active{ filter:brightness(.92); }
+
+  /* ---------- Active view ---------- */
+  #active-view{ flex:1; display:flex; flex-direction:column; }
+  .active-top{ display:flex; justify-content:space-between; align-items:center; padding:18px 20px; }
+  .icon-btn{ background:none; border:none; color:var(--ink); opacity:.7; font-size:14px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:8px; }
+  .stage{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; }
+  .phase-label{ font-size:15px; font-weight:800; letter-spacing:.22em; text-transform:uppercase; }
+  .ring-wrap{ position:relative; width:min(72vw,260px); height:min(72vw,260px); }
+  .ring-wrap svg{ width:100%; height:100%; transform:rotate(-90deg); }
+  .ring-track{ fill:none; stroke:var(--ring-track); stroke-width:8; }
+  .ring-progress{ fill:none; stroke:var(--ink); stroke-width:8; stroke-linecap:round; transition: stroke-dashoffset .12s linear; }
+  .countdown{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:clamp(56px,16vw,86px); font-weight:700; font-variant-numeric:tabular-nums; }
+  .countdown.pulse{ animation:pulse .35s ease; }
+  @keyframes pulse{ 0%{transform:scale(1);} 35%{transform:scale(1.08);} 100%{transform:scale(1);} }
+  @media (prefers-reduced-motion: reduce){ .countdown.pulse{ animation:none; } }
+  .meta{ font-size:14px; color:var(--ink-dim); font-weight:600; letter-spacing:.04em; }
+
+  .controls{ display:flex; align-items:center; justify-content:center; gap:28px; padding:20px 20px 28px; }
+  .ctrl-secondary{ background:none; border:none; color:var(--ink); opacity:.6; font-size:13px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:10px; }
+  .ctrl-primary{ width:78px; height:78px; border-radius:50%; background:var(--ink); border:none; color:var(--bg); font-size:15px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; }
+  .ctrl-primary:active{ filter:brightness(.9); }
+
+  #app.phase-prep{ --phase:var(--prep); }
+  #app.phase-work{ --phase:var(--work); }
+  #app.phase-rest{ --phase:var(--rest); }
+  #app.phase-setbreak{ --phase:var(--setbreak); }
+  #app.phase-prep,#app.phase-work,#app.phase-rest,#app.phase-setbreak{ background:var(--phase); color:#15130F; }
+  #app.phase-prep .ring-track,#app.phase-work .ring-track,#app.phase-rest .ring-track,#app.phase-setbreak .ring-track{ stroke:rgba(21,19,15,0.22); }
+  #app.phase-prep .ring-progress,#app.phase-work .ring-progress,#app.phase-rest .ring-progress,#app.phase-setbreak .ring-progress{ stroke:#15130F; }
+  #app.phase-prep .ctrl-secondary,#app.phase-work .ctrl-secondary,#app.phase-rest .ctrl-secondary,#app.phase-setbreak .ctrl-secondary,
+  #app.phase-prep .icon-btn,#app.phase-work .icon-btn,#app.phase-rest .icon-btn,#app.phase-setbreak .icon-btn{ color:#15130F; }
+  #app.phase-prep .meta,#app.phase-work .meta,#app.phase-rest .meta,#app.phase-setbreak .meta{ color:rgba(21,19,15,.65); }
+  #app.phase-prep .ctrl-primary,#app.phase-work .ctrl-primary,#app.phase-rest .ctrl-primary,#app.phase-setbreak .ctrl-primary{ background:#15130F; color:var(--phase); }
+
+  /* ---------- Done view ---------- */
+  #done-view{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:24px; text-align:center; }
+  #done-view .big{ font-size:26px; font-weight:800; }
+  #done-view .stats{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:15px; color:var(--ink-dim); margin-bottom:18px; }
+  #done-view button{ padding:16px 28px; border-radius:14px; background:var(--rest); border:none; color:#0A1F1B; font-weight:800; font-size:15px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <section id="setup-view">
+    <div class="eyebrow">Custom HIIT Timer</div>
+    <h1>Interval</h1>
+
+    <div class="presets">
+      <button class="preset-btn" data-preset="tabata">Tabata 20/10×8</button>
+      <button class="preset-btn" data-preset="classic">Classic 30/30×10</button>
+      <button class="preset-btn" data-preset="strength">Strength 40/20×12</button>
+    </div>
+
+    <div class="row">
+      <div><div class="row-label">Get ready</div><div class="row-sub">Countdown before you start</div></div>
+      <div class="stepper" data-field="prep" data-min="0" data-max="60" data-step="5">
+        <button data-dir="-1">−</button><div class="val">10s</div><button data-dir="1">+</button>
+      </div>
+    </div>
+    <div class="row">
+      <div><div class="row-label">Work</div><div class="row-sub">High-intensity interval</div></div>
+      <div class="stepper" data-field="work" data-min="5" data-max="300" data-step="5">
+        <button data-dir="-1">−</button><div class="val">30s</div><button data-dir="1">+</button>
+      </div>
+    </div>
+    <div class="row">
+      <div><div class="row-label">Rest</div><div class="row-sub">Recovery between rounds</div></div>
+      <div class="stepper" data-field="rest" data-min="0" data-max="180" data-step="5">
+        <button data-dir="-1">−</button><div class="val">15s</div><button data-dir="1">+</button>
+      </div>
+    </div>
+    <div class="row">
+      <div><div class="row-label">Rounds</div><div class="row-sub">Work + rest cycles per set</div></div>
+      <div class="stepper" data-field="rounds" data-min="1" data-max="50" data-step="1">
+        <button data-dir="-1">−</button><div class="val">8</div><button data-dir="1">+</button>
+      </div>
+    </div>
+    <div class="row">
+      <div><div class="row-label">Sets</div><div class="row-sub">Groups of rounds</div></div>
+      <div class="stepper" data-field="sets" data-min="1" data-max="10" data-step="1">
+        <button data-dir="-1">−</button><div class="val">1</div><button data-dir="1">+</button>
+      </div>
+    </div>
+    <div class="row" id="row-setbreak">
+      <div><div class="row-label">Rest between sets</div><div class="row-sub">Longer break after each set</div></div>
+      <div class="stepper" data-field="setbreak" data-min="0" data-max="300" data-step="5">
+        <button data-dir="-1">−</button><div class="val">60s</div><button data-dir="1">+</button>
+      </div>
+    </div>
+
+    <div class="sound-row">
+      <div><div class="row-label">Voice & beep cues</div><div class="row-sub">Announce each phase out loud</div></div>
+      <button class="switch on" id="sound-toggle"><div class="knob"></div></button>
+    </div>
+
+    <button class="start-btn" id="start-btn">Start workout</button>
+  </section>
+
+  <section id="active-view" hidden>
+    <div class="active-top">
+      <button class="icon-btn" id="end-btn">End</button>
+      <button class="icon-btn" id="mute-btn">Sound on</button>
+    </div>
+    <div class="stage">
+      <div class="phase-label" id="phase-label">Get ready</div>
+      <div class="ring-wrap">
+        <svg viewBox="0 0 240 240">
+          <circle class="ring-track" cx="120" cy="120" r="108"></circle>
+          <circle class="ring-progress" id="ring-progress" cx="120" cy="120" r="108"></circle>
+        </svg>
+        <div class="countdown" id="countdown">10</div>
+      </div>
+      <div class="meta" id="meta-label">Round 1 of 8</div>
+    </div>
+    <div class="controls">
+      <button class="ctrl-secondary" id="skip-btn">Skip</button>
+      <button class="ctrl-primary" id="pause-btn">Pause</button>
+      <button class="ctrl-secondary" id="restart-btn">Restart</button>
+    </div>
+  </section>
+
+  <section id="done-view" hidden>
+    <div class="big">Workout complete</div>
+    <div class="stats" id="done-stats">8 rounds · 4:00 total</div>
+    <button id="again-btn">Start another</button>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  const appEl = document.getElementById('app');
+  const setupView = document.getElementById('setup-view');
+  const activeView = document.getElementById('active-view');
+  const doneView = document.getElementById('done-view');
+
+  const fields = { prep:10, work:30, rest:15, rounds:8, sets:1, setbreak:60 };
+  let soundOn = true;
+
+  // ---------- persisted settings ----------
+  async function loadSaved(){
+    try{
+      const raw = localStorage.getItem('hiit-settings');
+      if(raw){
+        const s = JSON.parse(raw);
+        Object.assign(fields, s.fields || {});
+        if(typeof s.soundOn === 'boolean') soundOn = s.soundOn;
+      }
+    }catch(e){ /* first run, no saved settings yet, or storage unavailable */ }
+  }
+  async function saveSettings(){
+    try{ localStorage.setItem('hiit-settings', JSON.stringify({fields, soundOn})); }catch(e){}
+  }
+
+  // ---------- setup UI ----------
+  function renderFields(){
+    document.querySelectorAll('.stepper').forEach(function(s){
+      const key = s.dataset.field;
+      const v = fields[key];
+      s.querySelector('.val').textContent = (key==='rounds'||key==='sets') ? v : v+'s';
+    });
+    document.getElementById('row-setbreak').classList.toggle('dim', fields.sets<=1);
+    document.getElementById('sound-toggle').classList.toggle('on', soundOn);
+    document.getElementById('mute-btn').textContent = soundOn ? 'Sound on' : 'Sound off';
+  }
+
+  document.querySelectorAll('.stepper').forEach(function(stepper){
+    stepper.querySelectorAll('button').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        const key = stepper.dataset.field;
+        const min = +stepper.dataset.min, max = +stepper.dataset.max, step = +stepper.dataset.step;
+        const dir = +btn.dataset.dir;
+        fields[key] = Math.min(max, Math.max(min, fields[key] + dir*step));
+        renderFields();
+      });
+    });
+  });
+
+  document.getElementById('sound-toggle').addEventListener('click', function(){
+    soundOn = !soundOn;
+    renderFields();
+    saveSettings();
+  });
+
+  const PRESETS = {
+    tabata:   { prep:10, work:20, rest:10, rounds:8,  sets:1, setbreak:60 },
+    classic:  { prep:10, work:30, rest:30, rounds:10, sets:1, setbreak:60 },
+    strength: { prep:10, work:40, rest:20, rounds:12, sets:1, setbreak:60 }
+  };
+  document.querySelectorAll('.preset-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      Object.assign(fields, PRESETS[btn.dataset.preset]);
+      renderFields();
+    });
+  });
+
+  // ---------- audio ----------
+  let audioCtx = null;
+  function getCtx(){
+    if(!audioCtx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      audioCtx = new AC();
+    }
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+  function beep(freq, duration, type){
+    if(!soundOn) return;
+    try{
+      const ctx = getCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type || 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.28, ctx.currentTime+0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+duration);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime+duration+0.02);
+    }catch(e){}
+  }
+  function speak(text){
+    if(!soundOn) return;
+    try{
+      if(!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.05; u.volume = 1;
+      window.speechSynthesis.speak(u);
+    }catch(e){}
+  }
+
+  // ---------- wake lock ----------
+  let wakeLock = null;
+  async function acquireWakeLock(){
+    try{ if('wakeLock' in navigator){ wakeLock = await navigator.wakeLock.request('screen'); } }catch(e){}
+  }
+  function releaseWakeLock(){
+    if(wakeLock){ wakeLock.release().catch(function(){}); wakeLock = null; }
+  }
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible' && isRunning && !wakeLock){ acquireWakeLock(); }
+  });
+
+  // ---------- phase machine ----------
+  let phases = [];
+  let phaseIndex = -1;
+  let phaseEndAt = 0;
+  let remainingAtPause = 0;
+  let isRunning = false;
+  let lastBeepSec = null;
+  let tickHandle = null;
+  let workoutTotalSeconds = 0;
+
+  const RING_C = 2*Math.PI*108;
+  document.getElementById('ring-progress').style.strokeDasharray = RING_C + ' ' + RING_C;
+
+  function buildPhases(){
+    const list = [];
+    if(fields.prep>0) list.push({type:'prep', duration:fields.prep});
+    for(let s=0; s<fields.sets; s++){
+      for(let r=0; r<fields.rounds; r++){
+        list.push({type:'work', duration:fields.work, round:r+1, set:s+1});
+        if(fields.rest>0) list.push({type:'rest', duration:fields.rest, round:r+1, set:s+1});
+      }
+      if(s < fields.sets-1 && fields.setbreak>0){
+        list.push({type:'setbreak', duration:fields.setbreak, set:s+1});
+      }
+    }
+    if(list.length && list[list.length-1].type === 'rest'){ list.pop(); }
+    return list;
+  }
+
+  function phaseLabelText(p){
+    if(p.type==='prep') return 'Get ready';
+    if(p.type==='work') return 'Work';
+    if(p.type==='rest') return 'Rest';
+    if(p.type==='setbreak') return 'Set break';
+    return '';
+  }
+
+  function setPhaseVisuals(p){
+    appEl.className = 'phase-' + p.type;
+    document.getElementById('phase-label').textContent = phaseLabelText(p);
+    const meta = document.getElementById('meta-label');
+    if(p.type==='work' || p.type==='rest'){
+      let txt = 'Round ' + p.round + ' of ' + fields.rounds;
+      if(fields.sets>1) txt += '  ·  Set ' + p.set + ' of ' + fields.sets;
+      meta.textContent = txt;
+    } else if(p.type==='setbreak'){
+      meta.textContent = 'Set ' + p.set + ' of ' + fields.sets + ' complete';
+    } else {
+      meta.textContent = 'Starting soon';
+    }
+  }
+
+  function updateCountdown(sec, fraction){
+    const el = document.getElementById('countdown');
+    el.textContent = sec;
+    el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+    document.getElementById('ring-progress').style.strokeDashoffset = RING_C * (1-fraction);
+  }
+
+  function advance(){
+    phaseIndex++;
+    if(phaseIndex >= phases.length){ finish(); return; }
+    const p = phases[phaseIndex];
+    phaseEndAt = Date.now() + p.duration*1000;
+    lastBeepSec = null;
+    setPhaseVisuals(p);
+    speak(phaseLabelText(p));
+    beep(p.type==='work' ? 880 : 520, 0.16, p.type==='work' ? 'square' : 'sine');
+    updateCountdown(p.duration, 1);
+  }
+
+  function tick(){
+    if(!isRunning) return;
+    const p = phases[phaseIndex];
+    if(!p) return;
+    const remainMs = phaseEndAt - Date.now();
+    if(remainMs <= 0){ advance(); return; }
+    const remainSec = Math.ceil(remainMs/1000);
+    updateCountdown(remainSec, remainMs/(p.duration*1000));
+    if(remainSec<=3 && remainSec>=1 && lastBeepSec!==remainSec){
+      beep(620 + (3-remainSec)*120, 0.09, 'sine');
+      lastBeepSec = remainSec;
+    }
+  }
+
+  function start(){
+    phases = buildPhases();
+    if(!phases.length) return;
+    workoutTotalSeconds = phases.reduce(function(sum,p){ return sum + (p.type!=='prep' ? p.duration : 0); }, 0);
+    phaseIndex = -1;
+    isRunning = true;
+    setupView.hidden = true; doneView.hidden = true; activeView.hidden = false;
+    document.getElementById('pause-btn').textContent = 'Pause';
+    getCtx();
+    acquireWakeLock();
+    saveSettings();
+    advance();
+    tickHandle = setInterval(tick, 100);
+  }
+
+  function pause(){
+    if(!isRunning) return;
+    isRunning = false;
+    remainingAtPause = phaseEndAt - Date.now();
+    clearInterval(tickHandle);
+    releaseWakeLock();
+    document.getElementById('pause-btn').textContent = 'Resume';
+  }
+  function resume(){
+    if(isRunning) return;
+    isRunning = true;
+    phaseEndAt = Date.now() + remainingAtPause;
+    acquireWakeLock();
+    document.getElementById('pause-btn').textContent = 'Pause';
+    tickHandle = setInterval(tick, 100);
+  }
+
+  function endToSetup(){
+    isRunning = false;
+    clearInterval(tickHandle);
+    releaseWakeLock();
+    try{ window.speechSynthesis.cancel(); }catch(e){}
+    activeView.hidden = true; doneView.hidden = true; setupView.hidden = false;
+    appEl.className = '';
+  }
+
+  function finish(){
+    isRunning = false;
+    clearInterval(tickHandle);
+    releaseWakeLock();
+    speak('Workout complete');
+    beep(660,0.14,'sine'); setTimeout(function(){beep(880,0.14,'sine');},150); setTimeout(function(){beep(1100,0.22,'sine');},300);
+    const mins = Math.floor(workoutTotalSeconds/60), secs = workoutTotalSeconds%60;
+    document.getElementById('done-stats').textContent =
+      (fields.rounds*fields.sets) + ' rounds · ' + mins + ':' + (secs<10?'0':'')+secs + ' total work+rest';
+    activeView.hidden = true; setupView.hidden = true; doneView.hidden = false;
+    appEl.className = '';
+  }
+
+  document.getElementById('start-btn').addEventListener('click', start);
+  document.getElementById('pause-btn').addEventListener('click', function(){ isRunning ? pause() : resume(); });
+  document.getElementById('end-btn').addEventListener('click', endToSetup);
+  document.getElementById('restart-btn').addEventListener('click', function(){
+    clearInterval(tickHandle);
+    releaseWakeLock();
+    start();
+  });
+  document.getElementById('skip-btn').addEventListener('click', function(){
+    if(!isRunning) return;
+    advance();
+  });
+  document.getElementById('mute-btn').addEventListener('click', function(){
+    soundOn = !soundOn;
+    document.getElementById('mute-btn').textContent = soundOn ? 'Sound on' : 'Sound off';
+    saveSettings();
+  });
+  document.getElementById('again-btn').addEventListener('click', function(){
+    doneView.hidden = true; setupView.hidden = false;
+  });
+
+  loadSaved().then(renderFields);
+})();
+</script>
+</body>
+</html>
