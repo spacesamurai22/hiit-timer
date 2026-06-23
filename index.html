@@ -60,6 +60,61 @@
   .start-btn{ margin-top:24px; width:100%; padding:18px; border-radius:16px; background:var(--work); color:#1A0A02; font-size:19px; font-weight:800; letter-spacing:.02em; border:none; }
   .start-btn:active{ filter:brightness(.92); }
 
+  /* make tappable value labels visually distinct */
+  .stepper .val.tappable{ border-bottom:1px dashed rgba(244,239,228,0.35); cursor:pointer; }
+  .stepper .val.tappable:active{ opacity:.6; }
+
+  /* ---------- Bottom sheet ---------- */
+  #sheet-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100;
+    display:flex; flex-direction:column; justify-content:flex-end;
+  }
+  #sheet{
+    background:#1E1C17; border-radius:20px 20px 0 0;
+    padding:12px 24px;
+    padding-bottom:max(36px, calc(env(safe-area-inset-bottom) + 24px));
+    animation: slideup .22s cubic-bezier(0.32,0.72,0,1);
+  }
+  @keyframes slideup{ from{transform:translateY(100%)} to{transform:translateY(0)} }
+  .sheet-handle{
+    width:36px; height:4px; background:rgba(244,239,228,0.25); border-radius:2px;
+    margin:0 auto 18px;
+  }
+  .sheet-title{
+    font-size:17px; font-weight:700; text-align:center; margin-bottom:18px; color:var(--ink);
+  }
+  .chips{
+    display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-bottom:22px;
+  }
+  .chip{
+    padding:8px 16px; border-radius:20px; border:1px solid rgba(244,239,228,0.22);
+    background:transparent; color:var(--ink); font-size:14px; font-weight:600;
+    transition: background .12s, border-color .12s;
+  }
+  .chip.active{ background:var(--rest); color:#0A1F1B; border-color:transparent; }
+  .chip:active{ opacity:.7; }
+  .time-input-wrap{
+    display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:24px;
+  }
+  .time-field{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .time-input{
+    width:96px; height:76px; border-radius:14px; background:rgba(244,239,228,0.09);
+    border:2px solid rgba(244,239,228,0.18); color:var(--ink);
+    font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:46px; font-weight:700;
+    text-align:center; -webkit-user-select:auto; user-select:auto;
+    -moz-appearance:textfield; appearance:textfield;
+  }
+  .time-input::-webkit-outer-spin-button,
+  .time-input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .time-input:focus{ outline:none; border-color:var(--rest); background:rgba(0,194,168,0.09); }
+  .time-label{ font-size:11px; color:var(--ink-dim); font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
+  .time-colon{ font-size:46px; font-weight:700; font-family:ui-monospace,"SF Mono",Menlo,monospace; padding-bottom:22px; opacity:.5; }
+  .sheet-done{
+    width:100%; padding:17px; border-radius:14px; background:var(--rest);
+    color:#0A1F1B; font-size:17px; font-weight:800; border:none; letter-spacing:.02em;
+  }
+  .sheet-done:active{ filter:brightness(.9); }
+
   /* ---------- Active view ---------- */
   #active-view{ flex:1; display:flex; flex-direction:column; }
   .active-top{ display:flex; justify-content:space-between; align-items:center; padding:18px 20px; }
@@ -122,13 +177,13 @@
     </div>
     <div class="row">
       <div><div class="row-label">Work</div><div class="row-sub">High-intensity interval</div></div>
-      <div class="stepper" data-field="work" data-min="5" data-max="300" data-step="5">
+      <div class="stepper" data-field="work" data-min="5" data-max="3600" data-step="5">
         <button data-dir="-1">−</button><div class="val">30s</div><button data-dir="1">+</button>
       </div>
     </div>
     <div class="row">
       <div><div class="row-label">Rest</div><div class="row-sub">Recovery between rounds</div></div>
-      <div class="stepper" data-field="rest" data-min="0" data-max="180" data-step="5">
+      <div class="stepper" data-field="rest" data-min="0" data-max="3600" data-step="5">
         <button data-dir="-1">−</button><div class="val">15s</div><button data-dir="1">+</button>
       </div>
     </div>
@@ -146,7 +201,7 @@
     </div>
     <div class="row" id="row-setbreak">
       <div><div class="row-label">Rest between sets</div><div class="row-sub">Longer break after each set</div></div>
-      <div class="stepper" data-field="setbreak" data-min="0" data-max="300" data-step="5">
+      <div class="stepper" data-field="setbreak" data-min="0" data-max="3600" data-step="5">
         <button data-dir="-1">−</button><div class="val">60s</div><button data-dir="1">+</button>
       </div>
     </div>
@@ -191,6 +246,27 @@
     <button id="again-btn">Start another</button>
   </section>
 
+  <!-- Bottom sheet for duration editing -->
+  <div id="sheet-overlay" style="display:none">
+    <div id="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-title" id="sheet-title">Set duration</div>
+      <div class="chips" id="sheet-chips"></div>
+      <div class="time-input-wrap">
+        <div class="time-field">
+          <input class="time-input" id="sheet-min" type="number" min="0" max="99" inputmode="numeric" placeholder="0">
+          <div class="time-label">min</div>
+        </div>
+        <div class="time-colon">:</div>
+        <div class="time-field">
+          <input class="time-input" id="sheet-sec" type="number" min="0" max="59" inputmode="numeric" placeholder="00">
+          <div class="time-label">sec</div>
+        </div>
+      </div>
+      <button class="sheet-done" id="sheet-done">Done</button>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -219,11 +295,20 @@
   }
 
   // ---------- setup UI ----------
+  const TIME_FIELDS = ['prep','work','rest','setbreak'];
+
+  function formatDuration(sec){
+    if(sec < 60) return sec + 's';
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return s === 0 ? m + 'm' : m + 'm ' + s + 's';
+  }
+
   function renderFields(){
     document.querySelectorAll('.stepper').forEach(function(s){
       const key = s.dataset.field;
       const v = fields[key];
-      s.querySelector('.val').textContent = (key==='rounds'||key==='sets') ? v : v+'s';
+      s.querySelector('.val').textContent = TIME_FIELDS.includes(key) ? formatDuration(v) : String(v);
     });
     document.getElementById('row-setbreak').classList.toggle('dim', fields.sets<=1);
     document.getElementById('sound-toggle').classList.toggle('on', soundOn);
@@ -238,8 +323,104 @@
         const dir = +btn.dataset.dir;
         fields[key] = Math.min(max, Math.max(min, fields[key] + dir*step));
         renderFields();
+        saveSettings();
       });
     });
+    // mark time-field values as tappable
+    if(TIME_FIELDS.includes(stepper.dataset.field)){
+      stepper.querySelector('.val').classList.add('tappable');
+    }
+  });
+
+  // ---------- bottom sheet ----------
+  const SHEET_CHIPS = {
+    prep:     [5, 10, 15, 20, 30, 60],
+    work:     [20, 30, 40, 60, 90, 120, 300, 480],
+    rest:     [10, 15, 20, 30, 60, 90, 120],
+    setbreak: [30, 60, 90, 120, 180, 300]
+  };
+  const SHEET_LABELS = {
+    prep:'Get ready', work:'Work', rest:'Rest', setbreak:'Rest between sets'
+  };
+
+  const sheetOverlay = document.getElementById('sheet-overlay');
+  const sheetEl      = document.getElementById('sheet');
+  const sheetTitle   = document.getElementById('sheet-title');
+  const sheetChips   = document.getElementById('sheet-chips');
+  const sheetMinIn   = document.getElementById('sheet-min');
+  const sheetSecIn   = document.getElementById('sheet-sec');
+  let sheetField     = null;
+
+  function chipLabel(sec){
+    if(sec < 60) return sec + 's';
+    const m = sec / 60;
+    return (Number.isInteger(m) ? m : m.toFixed(1)) + 'm';
+  }
+
+  function refreshChipHighlights(){
+    const total = (parseInt(sheetMinIn.value)||0)*60 + (parseInt(sheetSecIn.value)||0);
+    sheetChips.querySelectorAll('.chip').forEach(function(chip){
+      chip.classList.toggle('active', +chip.dataset.sec === total);
+    });
+  }
+
+  function openSheet(field){
+    sheetField = field;
+    sheetTitle.textContent = SHEET_LABELS[field];
+    sheetChips.innerHTML = '';
+    (SHEET_CHIPS[field]||[]).forEach(function(sec){
+      const btn = document.createElement('button');
+      btn.className = 'chip';
+      btn.dataset.sec = sec;
+      btn.textContent = chipLabel(sec);
+      btn.addEventListener('click', function(){
+        sheetMinIn.value = Math.floor(sec/60);
+        sheetSecIn.value = sec%60;
+        refreshChipHighlights();
+      });
+      sheetChips.appendChild(btn);
+    });
+    sheetMinIn.value = Math.floor(fields[field]/60);
+    sheetSecIn.value = fields[field]%60;
+    refreshChipHighlights();
+    sheetOverlay.style.display = 'flex';
+    setTimeout(function(){ sheetMinIn.select(); }, 80);
+  }
+
+  function closeSheet(apply){
+    if(apply && sheetField){
+      const stepper = document.querySelector('[data-field="'+sheetField+'"]');
+      const fieldMin = +stepper.dataset.min, fieldMax = +stepper.dataset.max;
+      let mins = parseInt(sheetMinIn.value)||0;
+      let secs = parseInt(sheetSecIn.value)||0;
+      // clamp seconds to 0-59
+      secs = Math.min(59, Math.max(0, secs));
+      let total = mins*60 + secs;
+      total = Math.min(fieldMax, Math.max(fieldMin, total));
+      fields[sheetField] = total;
+      renderFields();
+      saveSettings();
+    }
+    sheetOverlay.style.display = 'none';
+    sheetField = null;
+  }
+
+  // open sheet when tapping the value label
+  document.querySelectorAll('.stepper').forEach(function(stepper){
+    const key = stepper.dataset.field;
+    if(!TIME_FIELDS.includes(key)) return;
+    stepper.querySelector('.val').addEventListener('click', function(){ openSheet(key); });
+  });
+
+  sheetOverlay.addEventListener('click', function(e){ if(e.target===sheetOverlay) closeSheet(false); });
+  document.getElementById('sheet-done').addEventListener('click', function(){ closeSheet(true); });
+  sheetMinIn.addEventListener('input', refreshChipHighlights);
+  sheetSecIn.addEventListener('input', refreshChipHighlights);
+  // clamp seconds on blur
+  sheetSecIn.addEventListener('blur', function(){
+    let s = parseInt(sheetSecIn.value)||0;
+    sheetSecIn.value = Math.min(59, Math.max(0, s));
+    refreshChipHighlights();
   });
 
   document.getElementById('sound-toggle').addEventListener('click', function(){
