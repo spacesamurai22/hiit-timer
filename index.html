@@ -171,7 +171,7 @@
 
     <div class="row">
       <div><div class="row-label">Get ready</div><div class="row-sub">Countdown before you start</div></div>
-      <div class="stepper" data-field="prep" data-min="0" data-max="60" data-step="5">
+      <div class="stepper" data-field="prep" data-min="0" data-max="3600" data-step="5">
         <button data-dir="-1">−</button><div class="val">10s</div><button data-dir="1">+</button>
       </div>
     </div>
@@ -350,6 +350,8 @@
   const sheetMinIn   = document.getElementById('sheet-min');
   const sheetSecIn   = document.getElementById('sheet-sec');
   let sheetField     = null;
+  let sheetMins      = 0;   // tracked in JS — don't rely on .value in closeSheet
+  let sheetSecs      = 0;
 
   function chipLabel(sec){
     if(sec < 60) return sec + 's';
@@ -358,10 +360,18 @@
   }
 
   function refreshChipHighlights(){
-    const total = (parseInt(sheetMinIn.value)||0)*60 + (parseInt(sheetSecIn.value)||0);
+    const total = sheetMins*60 + sheetSecs;
     sheetChips.querySelectorAll('.chip').forEach(function(chip){
       chip.classList.toggle('active', +chip.dataset.sec === total);
     });
+  }
+
+  function setSheetTime(mins, secs){
+    sheetMins = Math.max(0, mins);
+    sheetSecs = Math.min(59, Math.max(0, secs));
+    sheetMinIn.value = sheetMins;
+    sheetSecIn.value = sheetSecs;
+    refreshChipHighlights();
   }
 
   function openSheet(field){
@@ -373,16 +383,13 @@
       btn.className = 'chip';
       btn.dataset.sec = sec;
       btn.textContent = chipLabel(sec);
-      btn.addEventListener('click', function(){
-        sheetMinIn.value = Math.floor(sec/60);
-        sheetSecIn.value = sec%60;
-        refreshChipHighlights();
+      btn.addEventListener('pointerdown', function(e){
+        e.preventDefault(); // stop blur on inputs from firing first
+        setSheetTime(Math.floor(sec/60), sec%60);
       });
       sheetChips.appendChild(btn);
     });
-    sheetMinIn.value = Math.floor(fields[field]/60);
-    sheetSecIn.value = fields[field]%60;
-    refreshChipHighlights();
+    setSheetTime(Math.floor(fields[field]/60), fields[field]%60);
     sheetOverlay.style.display = 'flex';
     setTimeout(function(){ sheetMinIn.select(); }, 80);
   }
@@ -391,11 +398,7 @@
     if(apply && sheetField){
       const stepper = document.querySelector('[data-field="'+sheetField+'"]');
       const fieldMin = +stepper.dataset.min, fieldMax = +stepper.dataset.max;
-      let mins = parseInt(sheetMinIn.value)||0;
-      let secs = parseInt(sheetSecIn.value)||0;
-      // clamp seconds to 0-59
-      secs = Math.min(59, Math.max(0, secs));
-      let total = mins*60 + secs;
+      let total = sheetMins*60 + sheetSecs;
       total = Math.min(fieldMax, Math.max(fieldMin, total));
       fields[sheetField] = total;
       renderFields();
@@ -412,14 +415,25 @@
     stepper.querySelector('.val').addEventListener('click', function(){ openSheet(key); });
   });
 
-  sheetOverlay.addEventListener('click', function(e){ if(e.target===sheetOverlay) closeSheet(false); });
-  document.getElementById('sheet-done').addEventListener('click', function(){ closeSheet(true); });
-  sheetMinIn.addEventListener('input', refreshChipHighlights);
-  sheetSecIn.addEventListener('input', refreshChipHighlights);
-  // clamp seconds on blur
+  sheetOverlay.addEventListener('pointerdown', function(e){ if(e.target===sheetOverlay) closeSheet(false); });
+
+  // pointerdown fires before blur so we still have the input value
+  document.getElementById('sheet-done').addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    closeSheet(true);
+  });
+
+  sheetMinIn.addEventListener('input', function(){
+    sheetMins = parseInt(sheetMinIn.value) || 0;
+    refreshChipHighlights();
+  });
+  sheetSecIn.addEventListener('input', function(){
+    sheetSecs = Math.min(59, Math.max(0, parseInt(sheetSecIn.value) || 0));
+    refreshChipHighlights();
+  });
   sheetSecIn.addEventListener('blur', function(){
-    let s = parseInt(sheetSecIn.value)||0;
-    sheetSecIn.value = Math.min(59, Math.max(0, s));
+    sheetSecs = Math.min(59, Math.max(0, parseInt(sheetSecIn.value) || 0));
+    sheetSecIn.value = sheetSecs;
     refreshChipHighlights();
   });
 
